@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "stridebook-demo",
+      "runtimeExecutable": "uv",
+      "runtimeArgs": ["run", "stridebook", "--demo", "--no-show", "--port", "5006"],
+      "port": 5006
+    }
+  ]
+}

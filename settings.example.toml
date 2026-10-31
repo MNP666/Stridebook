@@ -1,0 +1,33 @@
+# Personal settings. Copy to data/settings.toml (or $STRIDEBOOK_DATA/settings.toml) and edit.
+# The keys are a superset of Stridelab's hr_zones.toml, so that file can be copied in as is.
+
+max_hr = 190
+
+# Easy runs report the heart rate you would have at this pace (min:sec per km).
+reference_pace = "5:30"
+
+# Zone N spans [min, max) in bpm. The last zone's max should catch any reading.
+[[zones]]
+name = "Z1 Recovery"
+min  = 0
+max  = 125
+
+[[zones]]
+name = "Z2 Aerobic"
+min  = 125
+max  = 145
+
+[[zones]]
+name = "Z3 Tempo"
+min  = 145
+max  = 160
+
+[[zones]]
+name = "Z4 Threshold"
+min  = 160
+max  = 172
+
+[[zones]]
+name = "Z5 VO2max"
+min  = 172
+max  = 999

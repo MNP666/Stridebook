@@ -1,0 +1,52 @@
+[project]
+name = "stridebook"
+version = "0.1.0"
+description = "A local Panel dashboard for analysing and trending running workouts from .fit files"
+readme = "README.md"
+authors = [
+    { name = "MNP666", email = "53476470+MNP666@users.noreply.github.com" }
+]
+requires-python = ">=3.13"
+dependencies = [
+    "holoviews>=1.23.2",
+    "hvplot>=0.12.2",
+    "numpy>=2.5.4",
+    "pandas>=3.1.0",
+    "panel>=1.10.0",
+]
+
+[project.scripts]
+stridebook = "stridebook.app:main"
+
+[build-system]
+requires = ["uv_build>=0.13.5,<0.14.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.2.0",
+    "ruff>=0.17.3",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.lint]
+extend-select = ["I", "B", "UP", "TID251"]
+
+# The processing side (domain, sources, analysis, pipeline, store) never imports the UI stack,
+# so analysis code can move into Stridelab unchanged. Only ui/ and app.py may.
+[tool.ruff.lint.flake8-tidy-imports.banned-api]
+"panel".msg = "UI only: import panel in stridebook.ui or stridebook.app"
+"param".msg = "UI only: import param in stridebook.ui or stridebook.app"
+"holoviews".msg = "UI only: import holoviews in stridebook.ui or stridebook.app"
+"hvplot".msg = "UI only: import hvplot in stridebook.ui or stridebook.app"
+"bokeh".msg = "UI only: import bokeh in stridebook.ui or stridebook.app"
+
+[tool.ruff.lint.per-file-ignores]
+"src/stridebook/ui/**" = ["TID251"]
+"src/stridebook/app.py" = ["TID251"]
+"tests/test_app.py" = ["TID251"]
