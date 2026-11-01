@@ -2,11 +2,18 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from stridebook import pipeline
 from stridebook.analysis import hr_fit
 from stridebook.analysis.metrics import METRIC_COLUMNS, METRICS
-from stridebook.analysis.segments import blocks, propose_segments
+from stridebook.analysis.segments import (
+    blocks,
+    burn_in_count,
+    burn_in_laps,
+    long_run_segments,
+    propose_segments,
+)
 from stridebook.analysis.structure import derive_structure, format_duration, race_distance_label
-from stridebook.domain import RunCategory, SegmentRole
+from stridebook.domain import BlockPace, RunCategory, SegmentRole
 from stridebook.sources import toy
 from tests.conftest import START, make
 
@@ -20,6 +27,8 @@ from tests.conftest import START, make
         ("tempo_25min", "1x25:00", RunCategory.TEMPO),
         ("easy", None, RunCategory.EASY),
         ("long_run", None, RunCategory.LONG_RUN),
+        ("long_run_mp", "2x5000m MP", RunCategory.LONG_RUN),
+        ("race_half", "half", RunCategory.RACE),
     ],
 )
 def test_new_run_suggests_structure_and_category(name, structure, category, settings):
@@ -127,6 +136,71 @@ def test_long_run_bins_and_fatigue(settings):
     assert len(r.bins) == 28
     assert r.changes_pct["step_length"] < 0
     assert r.changes_pct["vertical_oscillation"] > 0
+
+
+@pytest.mark.parametrize(
+    ("name", "n_blocks"), [("long_run", 0), ("long_run_mp", 2), ("long_run_hmp", 3)]
+)
+@pytest.mark.parametrize("seed", [1, 2, 3])
+def test_long_run_laps_are_grouped_by_pace(settings, name, n_blocks, seed):
+    run = make(name, settings, seed=seed).run
+    assert burn_in_count(run.segments) == 3  # settings.burn_in_km of 1 km laps
+    assert len(blocks(run.segments, SegmentRole.ACTIVE)) == n_blocks
+    # The toy's blocks start and end on a lap, and so do the found ones
+    lap_km = run.segments["distance_m"]
+    block_km = lap_km[run.segments["role"] == SegmentRole.ACTIVE.value].sum() / 1000
+    assert block_km == pytest.approx({0: 0, 2: 10, 3: 9}[n_blocks], abs=0.1)
+
+
+@pytest.mark.parametrize("n_blocks", [0, 1, 2, 3])
+def test_pace_blocks_follow_the_chosen_count(settings, n_blocks):
+    segments = make("long_run_mp", settings).run.segments
+    grouped = long_run_segments(segments, n_blocks, burn_in=4)
+    assert len(blocks(grouped, SegmentRole.ACTIVE)) == n_blocks
+    assert burn_in_count(grouped) == 4
+    assert set(grouped["role"]) <= {"warmup", "steady", "active"}
+
+
+def test_burn_in_laps_end_nearest_the_distance():
+    seg = propose_segments(toy.generate("long_run", start=START, distance_km=20).laps)
+    assert burn_in_laps(seg, 3) == 3
+    assert burn_in_laps(seg, 2.4) == 2
+    assert burn_in_laps(seg, 0) == 0
+    assert burn_in_laps(seg, 50) == len(seg) - 1  # never the whole run
+
+
+def test_long_run_steady_running_leaves_out_burn_in_and_blocks(settings):
+    p = make("long_run_mp", settings)
+    r = p.results["long_run"]
+    assert r.parts["role"].tolist() == ["warmup", "steady", "active", "steady", "active", "steady"]
+    steady, block = r.steady["pace_s_per_km"], r.blocks.blocks["pace_s_per_km"]
+    assert steady == pytest.approx(1000 / toy.LONG_RUN_SPEED, rel=0.05)
+    assert (block < steady - 30).all()
+    burn_in = r.parts.iloc[0]
+    assert burn_in["pace_s_per_km"] > steady + 10  # the toy's burn-in starts 10 % slower
+    m = p.metrics
+    assert m.loc[m["metric"] == "block_pace_s_per_km", "part_no"].tolist() == [1, 2]
+    assert m.loc[m["metric"] == "block_hr_exp_drift_tau_s", "part_no"].tolist() == [1, 2]
+
+
+def test_block_pace_and_regrouping(settings):
+    run = make("long_run_mp", settings).run
+    assert run.meta.block_pace == BlockPace.MARATHON  # the default once there are blocks
+    hmp = pipeline.group_long_run(run, 2, 3, BlockPace.HALF_MARATHON)
+    assert hmp.meta.structure == "2x5000m HMP"
+    plain = pipeline.group_long_run(run, 0, 3)
+    assert plain.meta.structure is None and plain.meta.block_pace is None
+    assert pipeline.default_title(RunCategory.LONG_RUN, None, 24_000) == "Long run 24 km"
+
+
+def test_moving_in_and_out_of_long_runs_proposes_roles(settings):
+    run = make("long_run_mp", settings).run
+    tempo = pipeline.restructure(run, settings=settings, category=RunCategory.TEMPO)
+    assert SegmentRole.STEADY.value not in set(tempo.segments["role"])
+    assert tempo.meta.block_pace is None
+    back = pipeline.restructure(tempo, settings=settings, category=RunCategory.LONG_RUN)
+    assert back.segments["role"].tolist() == run.segments["role"].tolist()
+    assert back.meta.structure == "2x5000m MP"
 
 
 def test_race_splits(settings):

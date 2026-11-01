@@ -17,9 +17,10 @@ from datetime import UTC, date, datetime, time, timedelta
 import numpy as np
 import pandas as pd
 
-from stridebook.domain import ParsedRun, RunCategory, SegmentRole
+from stridebook.domain import BlockPace, ParsedRun, RunCategory, SegmentRole
 
 W, A, R, C = SegmentRole.WARMUP, SegmentRole.ACTIVE, SegmentRole.REST, SegmentRole.COOLDOWN
+S = SegmentRole.STEADY
 
 # Model constants
 HR_FLOOR = 62.0  # bpm the steady-state model gives at zero speed
@@ -42,6 +43,8 @@ WORKOUTS = {
     "tempo_2x15min": "Tempo 2 × 15 min",
     "tempo_25min": "Tempo 25 min",
     "long_run": "Long run 24 km",
+    "long_run_mp": "Long run 24 km, 2 × 5 km at MP",
+    "long_run_hmp": "Long run 24 km, 3 × 3 km at HMP",
     "race_10k": "Race 10 km",
     "race_half": "Race half marathon",
 }
@@ -64,10 +67,24 @@ class Workout:
     fatigue: float = 0.0  # 0 = none, 1 = the end of a hard long run
     loop_m: float = 2500.0  # route perimeter
     hills_m: float = 12.0  # altitude amplitude
+    block_pace: BlockPace | None = None  # what a long run's pace blocks are; not in the file
+
+
+# Long-run pace blocks: name -> (blocks, km each, speed at fitness 1.0, pace)
+LONG_RUN_BLOCKS = {
+    "long_run_mp": (2, 5, 3.62, BlockPace.MARATHON),
+    "long_run_hmp": (3, 3, 3.85, BlockPace.HALF_MARATHON),
+}
+LONG_RUN_SPEED = 3.15  # m/s at fitness 1.0
 
 
 def workout(
-    name: str, fitness: float = 1.0, *, minutes: float = 50, distance_km: float = 24
+    name: str,
+    fitness: float = 1.0,
+    *,
+    minutes: float = 50,
+    distance_km: float = 24,
+    burn_in_km: int = 3,
 ) -> Workout:
     """A workout from the catalogue. Fitness scales every target speed (1.0 = baseline)."""
     f = fitness
@@ -92,14 +109,27 @@ def workout(
         case "tempo_25min":
             block = Step(A, 3.8 * f, duration_s=1500)
             return Workout(name, RunCategory.TEMPO, (warmup, block, cooldown))
-        case "long_run":
-            step = Step(A, 3.15 * f, distance_m=distance_km * 1000)
+        case "long_run" | "long_run_mp" | "long_run_hmp":
+            steady = LONG_RUN_SPEED * f
+            # The burn-in: a lap per km, each a little faster as the runner settles in
+            burn_in = [
+                Step(W, steady * x, distance_m=1000) for x in np.linspace(0.9, 0.97, burn_in_km)
+            ]
+            rest_km = distance_km - burn_in_km
+            n, block_km, speed, pace = LONG_RUN_BLOCKS.get(name, (0, 0, 0, None))
+            # The runner laps at each block's start and end; steady running is split evenly
+            # before, between and after the blocks
+            gap_m = (rest_km - n * block_km) * 1000 / (n + 1)
+            main = [Step(S, steady, distance_m=gap_m)]
+            for _ in range(n):
+                main += [Step(A, speed * f, distance_m=block_km * 1000), main[0]]
             return Workout(
                 name,
                 RunCategory.LONG_RUN,
-                (step,),
+                (*burn_in, *main),
                 auto_lap_m=1000,
                 fatigue=min(1, distance_km / 30),
+                block_pace=pace,
             )
         case "race_10k":
             step = Step(A, 4.1 * f, distance_m=10_000)
@@ -352,8 +382,9 @@ def demo_history(weeks: int = 12, *, end: date | None = None, seed: int = 0) -> 
     """A training block ending on `end` (default today): five runs a week, getting fitter.
 
     Tue intervals (5x6min / 6x1000m alternating), Wed easy, Thu tempo (2x15 / 25 min),
-    Sat easy, Sun long run growing in distance. A 10k replaces the middle week's long run and
-    a half marathon the last one's.
+    Sat easy, Sun long run growing in distance, with a 2-4 km burn-in and in turn no pace
+    blocks, 2 x 5 km at marathon pace or 3 x 3 km at half marathon pace. A 10k replaces the
+    middle week's long run and a half marathon the last one's.
     """
     rng = np.random.default_rng(seed)
     end = end or datetime.now(UTC).date()
@@ -361,17 +392,18 @@ def demo_history(weeks: int = 12, *, end: date | None = None, seed: int = 0) -> 
     runs = []
     for wk in range(weeks):
         fitness = 1 + 0.004 * wk
-        sunday = "long_run"
+        sunday = ("long_run", "long_run_mp", "long_run_hmp")[wk % 3]
+        sunday_kwargs = {"distance_km": min(30, 18 + 1.0 * wk), "burn_in_km": 2 + wk % 3}
         if wk == weeks // 2:
-            sunday = "race_10k"
+            sunday, sunday_kwargs = "race_10k", {}
         elif wk == weeks - 1 and weeks >= 8:
-            sunday = "race_half"
+            sunday, sunday_kwargs = "race_half", {}
         plan = [
             (1, "intervals_5x6min" if wk % 2 == 0 else "intervals_6x1000m", {}),
             (2, "easy", {"minutes": float(rng.choice([40, 50, 60]))}),
             (3, "tempo_25min" if wk % 2 == 0 else "tempo_2x15min", {}),
             (5, "easy", {"minutes": float(rng.choice([35, 45]))}),
-            (6, sunday, {"distance_km": min(30, 18 + 1.0 * wk)} if sunday == "long_run" else {}),
+            (6, sunday, sunday_kwargs),
         ]
         for day, name, kwargs in plan:
             d = first_monday + timedelta(weeks=wk, days=day)

@@ -6,6 +6,10 @@ max_hr = 190
 # Easy runs report the heart rate you would have at this pace (min:sec per km).
 reference_pace = "5:30"
 
+# Long runs start with a burn-in while pace and HR settle: the laps that make up this many km.
+# It is left out of drift and mechanics, and can be changed run by run.
+burn_in_km = 3
+
 # Zone N spans [min, max) in bpm. The last zone's max should catch any reading.
 [[zones]]
 name = "Z1 Recovery"

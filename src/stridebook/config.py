@@ -36,6 +36,8 @@ class Settings:
     zones: tuple[HrZone, ...] = field(default_factory=_default_zones)
     # Easy runs report the heart rate you would have at this pace (seconds per km).
     reference_pace_s_per_km: float = 330.0
+    # Long runs: the first km, while pace and HR settle. Left out of drift and mechanics.
+    burn_in_km: float = 3.0
 
 
 def resolve_data_dir(arg: str | os.PathLike | None = None) -> Path:
@@ -66,6 +68,8 @@ def load_settings(data_dir: Path) -> Settings:
         )
     if "reference_pace" in raw:
         kwargs["reference_pace_s_per_km"] = parse_pace(raw["reference_pace"])
+    if "burn_in_km" in raw:
+        kwargs["burn_in_km"] = float(raw["burn_in_km"])
     return Settings(**kwargs)
 
 

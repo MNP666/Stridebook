@@ -8,9 +8,10 @@ import pandas as pd
 import panel as pn
 
 from stridebook.analysis.common import add_derived
-from stridebook.analysis.segments import segment_summary
-from stridebook.domain import Run, RunCategory, SegmentRole
-from stridebook.pipeline import default_title, restructure
+from stridebook.analysis.segments import MAX_BLOCKS, blocks, burn_in_count, segment_summary
+from stridebook.config import Settings
+from stridebook.domain import BlockPace, Run, RunCategory, SegmentRole
+from stridebook.pipeline import default_title, group_long_run, restructure
 from stridebook.ui import format as fmt
 from stridebook.ui import plots
 from stridebook.ui.theme import stylesheet
@@ -69,11 +70,16 @@ def parse_tags(text: str) -> list[str]:
 
 CATEGORY_OPTIONS = {c.label: c.value for c in RunCategory}
 ROLE_VALUES = [r.value for r in SegmentRole]
+MAX_BURN_IN_LAPS = 6
 
 
 class RunEditor(pn.viewable.Viewer):
     """Category, title, structure, tags, notes and segment roles of one run, with a live
-    preview. Editing a role re-derives the structure; nothing is saved until `on_save`."""
+    preview. Editing a role re-derives the structure; nothing is saved until `on_save`.
+
+    A long run also gets its burn-in, number of pace blocks and block pace. Changing the first
+    two regroups the laps by pace; roles edited in the table update them in turn.
+    """
 
     def __init__(
         self,
@@ -81,11 +87,13 @@ class RunEditor(pn.viewable.Viewer):
         on_save: Callable[[Run], None],
         save_label: str = "Save run",
         known_tags: list[str] | None = None,
+        settings: Settings | None = None,
         **params,
     ):
         super().__init__(**params)
         self._run = run
         self._on_save = on_save
+        self._settings = settings or Settings()
         self._records = add_derived(run.parsed.records)
         self._distance_m = run.parsed.summary.get("distance_m")
         meta = run.meta
@@ -126,6 +134,29 @@ class RunEditor(pn.viewable.Viewer):
         self.save.on_click(self._save)
         self.category_input.param.watch(self._category_changed, "value")
 
+        self.burn_in_input = pn.widgets.Select(label="Burn-in", width=190)
+        self.blocks_input = pn.widgets.Select(label="Pace blocks", width=130)
+        self.block_pace_input = pn.widgets.Select(
+            label="Block pace",
+            options={p.label: p.value for p in BlockPace},
+            value=(meta.block_pace or BlockPace.MARATHON).value,
+            width=190,
+        )
+        self.long_run = pn.Column(
+            pn.Row(self.burn_in_input, self.blocks_input, self.block_pace_input),
+            html(
+                '<div class="hint">Laps are grouped by pace: the burn-in first, then the '
+                "fastest runs of laps as pace blocks, and the rest as steady running. Drift and "
+                "mechanics use the steady running only.</div>"
+            ),
+            sizing_mode="stretch_width",
+        )
+        self._syncing = False
+        self._sync_long_run()
+        self.burn_in_input.param.watch(self._regroup, "value")
+        self.blocks_input.param.watch(self._regroup, "value")
+        self.block_pace_input.param.watch(self._block_pace_changed, "value")
+
     def _segment_frame(self) -> pd.DataFrame:
         s = segment_summary(self._records, self._run.segments)
         t0 = self._records.index[0]
@@ -151,17 +182,72 @@ class RunEditor(pn.viewable.Viewer):
             self._run, segments=segments, category=RunCategory(self.category_input.value)
         )
         self._sync_derived()
+        self._sync_long_run()
         self.preview.objects = [self._preview()]
 
     def _category_changed(self, event) -> None:
-        self._run = restructure(self._run, category=RunCategory(event.new))
+        # Moving into or out of the long-run category proposes the roles afresh. The block pace
+        # choice is kept, for a run that comes back to being a long run.
+        self._run = restructure(
+            self._run,
+            settings=self._settings,
+            category=RunCategory(event.new),
+            block_pace=BlockPace(self.block_pace_input.value),
+        )
+        self._segments_changed()
+
+    def _regroup(self, _event) -> None:
+        if self._syncing:
+            return
+        self._run = group_long_run(
+            self._run,
+            n_blocks=self.blocks_input.value,
+            burn_in=self.burn_in_input.value,
+            block_pace=BlockPace(self.block_pace_input.value),
+        )
+        self._segments_changed()
+
+    def _block_pace_changed(self, event) -> None:
+        if self._run.meta.block_pace and not self._syncing:
+            self._run = restructure(self._run, block_pace=BlockPace(event.new))
+            self._sync_derived()
+
+    def _segments_changed(self) -> None:
+        self.table.value = self._segment_frame()
+        self.preview.objects = [self._preview()]
         self._sync_derived()
+        self._sync_long_run()
 
     def _sync_derived(self) -> None:
         meta = self._run.meta
         self.structure_input.value = meta.structure or ""
         if self._auto_title:
             self.title_input.value = default_title(meta.category, meta.structure, self._distance_m)
+
+    def _sync_long_run(self) -> None:
+        """Show the long-run choices for a long run, set to what its roles say."""
+        segments = self._run.segments
+        burn_in = burn_in_count(segments)
+        n_blocks = len(blocks(segments, SegmentRole.ACTIVE))
+        km = segments["distance_m"].cumsum() / 1000
+        laps = range(1, max(min(MAX_BURN_IN_LAPS, len(segments) - 1), burn_in) + 1)
+        self._syncing = True
+        try:
+            self.burn_in_input.param.update(
+                options={"None": 0}
+                | {f"{n} lap{'s' * (n > 1)} · {km.iloc[n - 1]:.1f} km": n for n in laps},
+                value=burn_in,
+            )
+            self.blocks_input.param.update(
+                options={"None": 0} | {str(n): n for n in range(1, max(MAX_BLOCKS, n_blocks) + 1)},
+                value=n_blocks,
+            )
+            if self._run.meta.block_pace:
+                self.block_pace_input.value = self._run.meta.block_pace.value
+        finally:
+            self._syncing = False
+        self.block_pace_input.visible = n_blocks > 0
+        self.long_run.visible = self._run.meta.category == RunCategory.LONG_RUN
 
     def _save(self, _event) -> None:
         run = restructure(
@@ -184,8 +270,9 @@ class RunEditor(pn.viewable.Viewer):
             pn.pane.Markdown("#### Segments", margin=(10, 10, 0, 10)),
             html(
                 '<div class="hint">Roles are suggested from lap speeds. Correct any that are '
-                "wrong: interval and tempo analysis use them, and so does the structure.</div>"
+                "wrong: the analyses use them, and so does the structure.</div>"
             ),
+            self.long_run,
             pn.Row(self.table, self.preview, sizing_mode="stretch_width"),
             self.save,
             sizing_mode="stretch_width",

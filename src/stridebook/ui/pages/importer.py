@@ -67,7 +67,12 @@ class ImportPage(pn.viewable.Viewer):
                 ("Device", s.get("device") or "–"),
             ]
         )
-        self.editor = RunEditor(run, on_save=self.state.save, known_tags=self.state.known_tags())
+        self.editor = RunEditor(
+            run,
+            on_save=self.state.save,
+            known_tags=self.state.known_tags(),
+            settings=self.state.settings,
+        )
         self.draft.objects = [
             pn.pane.Markdown(f"### {name}"),
             summary,

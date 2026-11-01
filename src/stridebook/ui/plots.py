@@ -97,6 +97,8 @@ def active_spans(records: pd.DataFrame, segments: pd.DataFrame):
         return None
     t0 = records.index[0]
     active = segments[segments["role"] == SegmentRole.ACTIVE.value]
+    if active.empty:
+        return None
     spans = pd.DataFrame(
         {
             "x0": (pd.DatetimeIndex(active["start"]) - t0).total_seconds() / 60,

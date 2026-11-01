@@ -58,10 +58,16 @@ METRICS: dict[str, MetricInfo] = {
         "Mean HR drift in blocks", "bpm/min", lower_is_better=True
     ),
     "block_pace_s_per_km": MetricInfo("Block pace", _PACE, per_part=True, lower_is_better=True),
+    "block_avg_hr": MetricInfo("Block average HR", "bpm", per_part=True),
     "block_hr_drift_bpm_per_min": MetricInfo(
         "HR drift in block", "bpm/min", per_part=True, lower_is_better=True
     ),
-    # long run: change from the first to the last third
+    # long run: steady running (after the burn-in, outside pace blocks), whose pace blocks
+    # share the tempo block metrics
+    "steady_pace_s_per_km": MetricInfo("Steady pace", _PACE, lower_is_better=True),
+    "steady_hr": MetricInfo("Steady HR", "bpm"),
+    "steady_ef": MetricInfo("Steady efficiency factor", "m/min/bpm"),
+    # long run: change from the first to the last third of steady running
     "cadence_change_pct": MetricInfo("Cadence change, last vs first third", "%"),
     "step_length_change_pct": MetricInfo("Step length change, last vs first third", "%"),
     "vertical_oscillation_change_pct": MetricInfo(

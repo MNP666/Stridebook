@@ -54,6 +54,7 @@ class RunPage(pn.viewable.Viewer):
             on_save=save,
             save_label="Save changes",
             known_tags=self.state.known_tags(),
+            settings=self.state.settings,
         )
         return pn.Column(
             editor, pn.layout.Divider(), pn.Row(delete, confirm), sizing_mode="stretch_width"

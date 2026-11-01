@@ -1,5 +1,6 @@
-"""The HR response section under the interval and tempo analyses: the chosen model fitted to
-each rep or block, its parameters part by part, and how well each model fits."""
+"""The HR response section under the interval and tempo analyses, and a long run's pace blocks:
+the chosen model fitted to each rep or block, its parameters part by part, and how well each
+model fits."""
 
 from html import escape
 

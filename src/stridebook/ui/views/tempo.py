@@ -34,6 +34,13 @@ def view(p: ProcessedRun, r: TempoResult, settings: Settings):
             ),
         ]
     )
+    return pn.Column(stats, *block_details(r), sizing_mode="stretch_width")
+
+
+def block_details(r: TempoResult) -> list:
+    """HR and pace through each block, the block table and the HR response. Long runs show
+    their pace blocks with it too."""
+    b = r.blocks
     traces = plots.with_pace_label(r.traces)
     traces["time"] = (traces["t_min"] * 60).map(fmt.duration)
     traces["pace_s_per_km"] = traces["pace_s_per_km"].where(traces["pace_s_per_km"] < 600)
@@ -76,8 +83,7 @@ def view(p: ProcessedRun, r: TempoResult, settings: Settings):
             "Decoupling (%)": b["decoupling_pct"].round(1),
         }
     )
-    return pn.Column(
-        stats,
+    return [
         charts,
         pn.widgets.Tabulator(
             table,
@@ -87,5 +93,4 @@ def view(p: ProcessedRun, r: TempoResult, settings: Settings):
             sizing_mode="stretch_width",
         ),
         HrResponse(r.hr_fits, "Block"),
-        sizing_mode="stretch_width",
-    )
+    ]

@@ -72,6 +72,7 @@ def metrics(r: TempoResult) -> pd.DataFrame:
         },
         {
             "block_pace_s_per_km": b["pace_s_per_km"].tolist(),
+            "block_avg_hr": b["avg_hr"].tolist(),
             "block_hr_drift_bpm_per_min": b["hr_drift_bpm_per_min"].tolist(),
             **part_metrics(r.hr_fits, "block"),
         },

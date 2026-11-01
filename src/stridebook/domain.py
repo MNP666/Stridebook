@@ -35,12 +35,32 @@ _CATEGORY_LABELS = {
 
 
 class SegmentRole(StrEnum):
-    """FIT's lap `intensity` vocabulary. Coros leaves it out of its files, so we derive it."""
+    """FIT's lap `intensity` vocabulary, which Coros leaves out of its files, so we derive it.
+
+    Plus `steady`, for long runs. A long run's warmup laps are its burn-in (the first km, while
+    pace and HR settle), its active laps are pace blocks, and the rest of it is steady.
+    """
 
     WARMUP = "warmup"
     ACTIVE = "active"
     REST = "rest"
     COOLDOWN = "cooldown"
+    STEADY = "steady"
+
+
+class BlockPace(StrEnum):
+    """The pace a long run's pace blocks are run at."""
+
+    MARATHON = "mp"
+    HALF_MARATHON = "hmp"
+
+    @property
+    def label(self) -> str:
+        return "Marathon pace" if self is BlockPace.MARATHON else "Half marathon pace"
+
+    @property
+    def short(self) -> str:
+        return self.value.upper()
 
 
 @dataclass
@@ -68,7 +88,8 @@ class RunMeta:
     title: str = ""
     notes: str = ""
     tags: list[str] = field(default_factory=list)
-    structure: str | None = None  # e.g. "5x6:00 r1:30", "6x1000m r2:30", "10k"
+    structure: str | None = None  # e.g. "5x6:00 r1:30", "6x1000m r2:30", "10k", "2x5000m MP"
+    block_pace: BlockPace | None = None  # long runs with pace blocks only
     source_name: str = ""
 
 

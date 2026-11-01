@@ -2,15 +2,16 @@
 
 A local [Panel](https://panel.holoviz.org) dashboard for analysing running workouts from `.fit` files and trending them over time. Processing will come from [Stridelab](../Stridelab); for now a toy data source stands in for it.
 
-- **Import:** upload a `.fit` file (or generate a demo workout), confirm the suggested category, title, tags, notes and the role of each lap (warmup / active / rest / cooldown).
+- **Import:** upload a `.fit` file (or generate a demo workout), confirm the suggested category, title, tags, notes and the role of each lap (warmup / active / rest / cooldown / steady).
+  - For a long run, pick the burn-in (the first laps, while pace and HR settle) and how many pace blocks it has (0–3), at marathon or half marathon pace. The laps are grouped by pace to match, and you can still correct any lap by hand. Lap at each block's start and end, so a block is whole laps.
 - **Run pages:** an overview for every run, plus analysis by category:
   - **Interval:** rep paces, HR in each rep, HR recovery in each rest.
   - **Tempo:** HR and pace drift through each threshold block.
   - **HR response** (interval and tempo): a model fitted to each rep or block for how fast HR rises (τ), where it levels off and how much it drifts. Pick an exponential, an exponential with linear drift, or a stretched exponential; a BIC table shows which fits best.
-  - **Long run:** per-km mechanics (cadence, step length, vertical oscillation and ratio, stance time) and cardiac drift.
+  - **Long run:** per-km mechanics (cadence, step length, vertical oscillation and ratio, stance time) and cardiac drift, judged on the steady running only (no burn-in, no pace blocks). A table compares the parts of the run. Pace blocks get the tempo analysis: HR and pace through each block, drift and the HR response.
   - **Race:** splits and pacing evenness.
   - **Easy:** aerobic efficiency.
-- **Trends:** any metric over time, narrowed by category, workout structure (`5x6:00 r1:30`, `6x1000m r2:30`, `10k`) and tags. With a structure chosen, per-rep metrics show rep 1, rep 2, … as separate lines, including the fitted HR response (τ, plateau, drift, β) with a choice of HR model.
+- **Trends:** any metric over time, narrowed by category, workout structure (`5x6:00 r1:30`, `6x1000m r2:30`, `10k`, `2x5000m MP`) and tags. With a structure chosen, per-rep metrics show rep 1, rep 2, … as separate lines, including the fitted HR response (τ, plateau, drift, β) with a choice of HR model.
 
 ## Running it
 
@@ -27,7 +28,7 @@ uv run stridebook --help        # --weeks, --port, --data-dir, --no-show
 
 ## Personal settings
 
-Copy `settings.example.toml` to `data/settings.toml` and set your max HR, HR zones and the reference pace for easy runs. The format is a superset of Stridelab's `hr_zones.toml`, so that file can be copied in as is.
+Copy `settings.example.toml` to `data/settings.toml` and set your max HR, HR zones, the reference pace for easy runs and the default long-run burn-in (`burn_in_km`). The format is a superset of Stridelab's `hr_zones.toml`, so that file can be copied in as is.
 
 The data folder is `./data` by default. Change it with `--data-dir` or `$STRIDEBOOK_DATA`. `data/` is gitignored, so routes and personal data never end up in the repository.
 

@@ -20,7 +20,11 @@ from stridebook.ui.theme import ordinal, palette
 from stridebook.ui.views.hr_response import DEFAULT_MODEL
 
 ALL, ANY = "all", "Any"
-PART_PREFIX = {RunCategory.INTERVAL.value: "Rep", RunCategory.TEMPO.value: "Block"}
+PART_PREFIX = {
+    RunCategory.INTERVAL.value: "Rep",
+    RunCategory.TEMPO.value: "Block",
+    RunCategory.LONG_RUN.value: "Block",
+}
 
 
 class TrendsPage(pn.viewable.Viewer):
