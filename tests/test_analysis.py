@@ -1,6 +1,8 @@
+import numpy as np
 import pandas as pd
 import pytest
 
+from stridebook.analysis import hr_fit
 from stridebook.analysis.metrics import METRIC_COLUMNS, METRICS
 from stridebook.analysis.segments import blocks, propose_segments
 from stridebook.analysis.structure import derive_structure, format_duration, race_distance_label
@@ -66,6 +68,58 @@ def test_tempo_blocks_drift_upwards(settings):
     r = make("tempo_2x15min", settings).results["tempo"]
     assert len(r.blocks) == 2
     assert (r.blocks["hr_drift_bpm_per_min"] > 0).all()
+
+
+@pytest.mark.parametrize(
+    ("model", "truth", "expected"),
+    [
+        ("exp", lambda t: 120 + 50 * (1 - np.exp(-t / 30)), {"tau_s": 30, "plateau_bpm": 170}),
+        (
+            "exp_drift",
+            lambda t: 120 + 50 * (1 - np.exp(-t / 30)) + 1.2 / 60 * t,
+            {"tau_s": 30, "plateau_bpm": 170, "drift_bpm_per_min": 1.2},
+        ),
+        (
+            "stretched",
+            lambda t: 120 + 50 * (1 - np.exp(-((t / 40) ** 0.6))),
+            {"tau_s": 40, "beta": 0.6},
+        ),
+    ],
+)
+def test_hr_fit_recovers_known_parameters(model, truth, expected):
+    t = np.arange(0, 600, 2.0)
+    hr = truth(t) + np.random.default_rng(0).normal(0, 1, len(t))
+    p = hr_fit.fit(t, hr, model)
+    for name, value in expected.items():
+        assert p[name] == pytest.approx(value, rel=0.08), name
+    assert p["rmse_bpm"] < 1.2
+
+
+def test_hr_fit_needs_enough_samples():
+    t = np.arange(10.0)
+    assert all(np.isnan(v) for v in hr_fit.fit(t, 150 + t, "exp").values())
+
+
+def test_hr_fits_per_rep_and_block(settings):
+    fits = make("intervals_5x6min", settings).results["intervals"].hr_fits
+    assert len(fits.params) == 5 * len(hr_fit.MODELS)
+    assert fits.params["tau_s"].between(20, 60).all()  # the toy HR rises with τ = 35 s
+    # A 25 min block keeps drifting, so drift beats a plain plateau
+    tempo = make("tempo_25min", settings).results["tempo"].hr_fits.params.set_index("model")
+    assert tempo.loc["exp_drift", "bic"] < tempo.loc["exp", "bic"] - 10
+
+
+def test_hr_fit_metrics_per_rep(settings):
+    m = make("intervals_5x6min", settings).metrics
+    tau = m[m["metric"] == hr_fit.metric_name("rep", "exp_drift", "tau_s")]
+    assert tau["part_no"].tolist() == [1, 2, 3, 4, 5]
+    assert tau["value"].between(20, 60).all()
+
+
+def test_metric_labels_are_unique_but_for_the_model():
+    # The trends page lists metrics by label, and fitted values by label plus model
+    keys = [(i.label, i.model) for i in METRICS.values()]
+    assert len(keys) == len(set(keys))
 
 
 def test_long_run_bins_and_fatigue(settings):

@@ -9,6 +9,7 @@ from stridebook.ui import format as fmt
 from stridebook.ui import plots
 from stridebook.ui.components import html, hv_pane, tiles
 from stridebook.ui.theme import palette
+from stridebook.ui.views.hr_response import HrResponse
 
 
 def view(p: ProcessedRun, r: IntervalResult, settings: Settings):
@@ -63,6 +64,7 @@ def view(p: ProcessedRun, r: IntervalResult, settings: Settings):
         title="HR in each rep",
         xlabel="Time into rep (min:sec)",
         ylabel="HR (bpm)",
+        xticks=plots.time_ticks(traces["t_s"].max()),
         xformatter=plots.mmss(),
     )
     rests = r.rest_traces.assign(time=r.rest_traces["t_s"].map(fmt.duration))
@@ -77,6 +79,7 @@ def view(p: ProcessedRun, r: IntervalResult, settings: Settings):
         title="HR recovery in each rest",
         xlabel="Time into rest (min:sec)",
         ylabel="HR (bpm)",
+        xticks=plots.time_ticks(rests["t_s"].max()),
         xformatter=plots.mmss(),
     )
 
@@ -110,5 +113,6 @@ def view(p: ProcessedRun, r: IntervalResult, settings: Settings):
             ),
             sizing_mode="stretch_width",
         ),
+        HrResponse(r.hr_fits, "Rep"),
         sizing_mode="stretch_width",
     )

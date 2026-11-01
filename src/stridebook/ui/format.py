@@ -30,12 +30,15 @@ def signed(x: float, digits: int = 1) -> str:
 
 def metric_value(metric: str, value: float) -> str:
     """A metrics-table value in its natural form: paces as m:ss, durations as h:mm:ss."""
-    unit = METRICS[metric].unit
+    info = METRICS[metric]
+    unit = info.unit
     if unit == "s/km":
         return f"{pace(value)} /km"
     if unit == "s":
         return duration(value)
-    digits = 0 if unit in ("bpm", "") else 1 if unit in ("%", "km", "min") else 2
+    digits = info.digits
+    if digits is None:
+        digits = 0 if unit in ("bpm", "") else 1 if unit in ("%", "km", "min") else 2
     return f"{number(value, digits)} {unit}".strip()
 
 

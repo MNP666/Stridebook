@@ -33,6 +33,17 @@ def hmmss() -> CustomJSTickFormatter:
     )
 
 
+def time_ticks(max_s: float, most: int = 5) -> list[float] | None:
+    """Ticks for a seconds axis shown as min:sec, on round steps (30 s, 1 min, 2 min, 5 min,
+    ...) and fewer than `most`, so narrow charts don't get overlapping labels. None (Bokeh's
+    own ticks) for an empty axis."""
+    if not np.isfinite(max_s) or max_s <= 0:
+        return None
+    steps = (15, 30, 60, 120, 300, 600, 900, 1800)
+    step = next((s for s in steps if max_s / s < most), 3600)
+    return np.arange(0, max_s + 1, step).tolist()
+
+
 def style(element, height: int = 200, **opts):
     p = palette()
     return element.opts(

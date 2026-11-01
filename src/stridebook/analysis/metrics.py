@@ -10,6 +10,8 @@ from dataclasses import dataclass
 
 import pandas as pd
 
+from stridebook.analysis.hr_fit import MODELS, metric_name
+
 METRIC_COLUMNS = ["part_no", "metric", "value", "unit"]
 
 
@@ -19,6 +21,10 @@ class MetricInfo:
     unit: str  # "s/km" is shown as min:sec pace, "s" as a duration
     per_part: bool = False  # one value per rep/block rather than per run
     lower_is_better: bool = False
+    digits: int | None = None  # decimals shown; None picks them from the unit
+    # The hr_fit model a fitted value comes from. Metrics that differ only by model share a
+    # label, and the trends page lists them once with a model choice.
+    model: str | None = None
 
 
 _PACE = "s/km"
@@ -66,9 +72,29 @@ METRICS: dict[str, MetricInfo] = {
     ),
     # race
     "finish_time_s": MetricInfo("Finish time", "s", lower_is_better=True),
-    "split_ratio": MetricInfo("Second half / first half", ""),
+    "split_ratio": MetricInfo("Second half / first half", "", digits=3),
     "pace_cv_pct": MetricInfo("Km pace variation", "%", lower_is_better=True),
 }
+
+# HR response fits (intervals and tempo): each model's parameters for every rep or block
+_HR_FIT = {  # fit column -> label, unit, lower is better, digits
+    "tau_s": ("HR rise τ", "s", True, None),
+    "plateau_bpm": ("HR plateau", "bpm", False, None),
+    "drift_bpm_per_min": ("HR drift, fitted", "bpm/min", True, None),
+    "beta": ("HR stretch β", "", False, 2),
+}
+for _part in ("rep", "block"):
+    for _model, _spec in MODELS.items():
+        for _column in _spec.trended:
+            _label, _unit, _lower, _digits = _HR_FIT[_column]
+            METRICS[metric_name(_part, _model, _column)] = MetricInfo(
+                f"{_part.capitalize()} {_label}",
+                _unit,
+                per_part=True,
+                lower_is_better=_lower,
+                digits=_digits,
+                model=_model,
+            )
 
 
 def metric_frame(

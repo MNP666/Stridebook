@@ -6,10 +6,11 @@ A local [Panel](https://panel.holoviz.org) dashboard for analysing running worko
 - **Run pages:** an overview for every run, plus analysis by category:
   - **Interval:** rep paces, HR in each rep, HR recovery in each rest.
   - **Tempo:** HR and pace drift through each threshold block.
+  - **HR response** (interval and tempo): a model fitted to each rep or block for how fast HR rises (τ), where it levels off and how much it drifts. Pick an exponential, an exponential with linear drift, or a stretched exponential; a BIC table shows which fits best.
   - **Long run:** per-km mechanics (cadence, step length, vertical oscillation and ratio, stance time) and cardiac drift.
   - **Race:** splits and pacing evenness.
   - **Easy:** aerobic efficiency.
-- **Trends:** any metric over time, narrowed by category, workout structure (`5x6:00 r1:30`, `6x1000m r2:30`, `10k`) and tags. With a structure chosen, per-rep metrics show rep 1, rep 2, … as separate lines.
+- **Trends:** any metric over time, narrowed by category, workout structure (`5x6:00 r1:30`, `6x1000m r2:30`, `10k`) and tags. With a structure chosen, per-rep metrics show rep 1, rep 2, … as separate lines, including the fitted HR response (τ, plateau, drift, β) with a choice of HR model.
 
 ## Running it
 

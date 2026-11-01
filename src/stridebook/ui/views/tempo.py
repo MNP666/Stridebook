@@ -7,6 +7,7 @@ from stridebook.domain import ProcessedRun
 from stridebook.ui import format as fmt
 from stridebook.ui import plots
 from stridebook.ui.components import html, linked, tiles
+from stridebook.ui.views.hr_response import HrResponse
 
 
 def view(p: ProcessedRun, r: TempoResult, settings: Settings):
@@ -85,5 +86,6 @@ def view(p: ProcessedRun, r: TempoResult, settings: Settings):
             layout="fit_data_stretch",
             sizing_mode="stretch_width",
         ),
+        HrResponse(r.hr_fits, "Block"),
         sizing_mode="stretch_width",
     )

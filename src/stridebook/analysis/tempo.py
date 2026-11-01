@@ -5,6 +5,7 @@ from dataclasses import dataclass
 import pandas as pd
 
 from stridebook.analysis.common import decoupling_pct, mean_over, slope_per_min, smooth
+from stridebook.analysis.hr_fit import HrFits, fit_parts, part_metrics
 from stridebook.analysis.metrics import metric_frame
 from stridebook.analysis.segments import blocks
 from stridebook.config import Settings
@@ -19,6 +20,7 @@ class TempoResult:
     blocks: pd.DataFrame  # block_no, start, end, duration_s, distance_m, pace_s_per_km, avg_hr,
     #                       hr_drift_bpm_per_min, pace_drift_s_per_km_per_min, decoupling_pct
     traces: pd.DataFrame  # block_no, t_min, heart_rate, pace_s_per_km (30 s smoothing)
+    hr_fits: HrFits  # HR response models fitted to each block; part_no is the block_no
 
 
 def compute(records: pd.DataFrame, segments: pd.DataFrame, settings: Settings) -> TempoResult:
@@ -53,6 +55,7 @@ def compute(records: pd.DataFrame, segments: pd.DataFrame, settings: Settings) -
     return TempoResult(
         blocks=b,
         traces=pd.concat(traces, ignore_index=True) if traces else pd.DataFrame(columns=cols),
+        hr_fits=fit_parts(records, b, "block_no"),
     )
 
 
@@ -70,5 +73,6 @@ def metrics(r: TempoResult) -> pd.DataFrame:
         {
             "block_pace_s_per_km": b["pace_s_per_km"].tolist(),
             "block_hr_drift_bpm_per_min": b["hr_drift_bpm_per_min"].tolist(),
+            **part_metrics(r.hr_fits, "block"),
         },
     )

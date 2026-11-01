@@ -132,4 +132,6 @@ def stylesheet() -> str:
     .meta {{ color: var(--ink2); font-size: 14px; }}
     .meta b {{ color: var(--ink); font-weight: 600; }}
     .hint {{ color: var(--muted); font-size: 13px; }}
+    .key {{ display: inline-block; width: 16px; height: 3px; border-radius: 2px;
+            vertical-align: middle; margin: 0 6px 0 16px; }}
     """

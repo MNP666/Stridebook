@@ -4,6 +4,8 @@ import panel as pn
 import pytest
 from bokeh.document import Document
 
+from stridebook.analysis.hr_fit import MODELS
+from stridebook.analysis.metrics import METRICS
 from stridebook.app import create_app
 from stridebook.sources.toy import ToySource
 from stridebook.store.memory import MemoryStore
@@ -11,6 +13,7 @@ from stridebook.ui.pages.importer import ImportPage
 from stridebook.ui.pages.run import RunPage
 from stridebook.ui.pages.trends import TrendsPage
 from stridebook.ui.state import AppState
+from stridebook.ui.views.hr_response import HrResponse
 
 
 @pytest.fixture(scope="module")
@@ -49,12 +52,41 @@ def test_pages_render_in_two_sessions(state):
             doc.add_root(pn.panel(view).get_root(doc))
 
 
+@pytest.mark.parametrize(("analysis", "part"), [("intervals", "Rep"), ("tempo", "Block")])
+def test_hr_response_switches_model(state, analysis, part):
+    runs = state.store.runs()
+    category = "interval" if analysis == "intervals" else analysis
+    run_id = runs.loc[runs["category"] == category, "run_id"].iloc[0]
+    section = HrResponse(state.store.get(run_id).results[analysis].hr_fits, part)
+    pn.panel(section).get_root()
+    for name in MODELS:
+        section.model_input.value = name
+        pn.panel(section.body).get_root()
+
+
 def test_trends_per_part(state):
     page = TrendsPage(state)
     page.structure.value = "5x6:00 r1:30"
     page.metric.value = "rep_pace_s_per_km"
     pn.panel(page).get_root()
     assert len(page.table.value) == 4
+
+
+def test_trends_hr_model_choice(state):
+    page = TrendsPage(state)
+    page.structure.value = "5x6:00 r1:30"
+    page.metric.value = "rep_hr_exp_drift_tau_s"
+    assert page.hr_model.visible and page.hr_model.value == "exp_drift"
+    # Each fitted value is listed once
+    assert list(page.metric.options).count(METRICS["rep_hr_exp_drift_tau_s"].label) == 1
+    page.hr_model.value = "stretched"
+    assert page.metric.value == "rep_hr_stretched_tau_s"
+    assert len(page.table.value) == 4
+    # Drift only comes from the drift model, so that is the only model offered
+    page.metric.value = "rep_hr_exp_drift_drift_bpm_per_min"
+    assert list(page.hr_model.options.values()) == ["exp_drift"]
+    page.metric.value = "rep_pace_s_per_km"
+    assert not page.hr_model.visible
 
 
 def test_import_and_save(state):

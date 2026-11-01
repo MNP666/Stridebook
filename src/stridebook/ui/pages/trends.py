@@ -2,19 +2,22 @@
 
 Filters narrow left to right. Per-rep metrics (rep 1..n as separate lines) are offered once a
 structure is chosen, since rep 3 of a 5x6:00 is only comparable with rep 3 of another 5x6:00.
+A fitted HR value (τ, plateau, ...) is listed once, with an HR model choice beside it.
 """
 
 import holoviews as hv
 import pandas as pd
 import panel as pn
 
-from stridebook.analysis.metrics import METRICS
+from stridebook.analysis.hr_fit import MODELS
+from stridebook.analysis.metrics import METRICS, MetricInfo
 from stridebook.domain import RunCategory
 from stridebook.ui import format as fmt
 from stridebook.ui import plots
 from stridebook.ui.components import html, hv_pane
 from stridebook.ui.state import AppState
 from stridebook.ui.theme import ordinal, palette
+from stridebook.ui.views.hr_response import DEFAULT_MODEL
 
 ALL, ANY = "all", "Any"
 PART_PREFIX = {RunCategory.INTERVAL.value: "Rep", RunCategory.TEMPO.value: "Block"}
@@ -40,6 +43,14 @@ class TrendsPage(pn.viewable.Viewer):
             label="Tags (all of)", options=state.known_tags(), width=240
         )
         self.metric = pn.widgets.Select(label="Metric", width=320)
+        self.hr_model = pn.widgets.Select(
+            label="HR model",
+            options={m.label: name for name, m in MODELS.items()},
+            value=DEFAULT_MODEL,
+            width=200,
+            visible=False,
+        )
+        self._syncing = False
         self.chart = hv_pane(sizing_mode="stretch_width")
         self.table = pn.widgets.Tabulator(
             pd.DataFrame(),
@@ -56,6 +67,7 @@ class TrendsPage(pn.viewable.Viewer):
         for w in (self.structure, self.tag_filter):
             w.param.watch(self._filters_changed, "value")
         self.metric.param.watch(self._render, "value")
+        self.hr_model.param.watch(self._model_changed, "value")
         self._category_changed()
 
     # filtering
@@ -80,23 +92,47 @@ class TrendsPage(pn.viewable.Viewer):
     def _filters_changed(self, *_):
         rows = self._rows()
         per_part_ok = self.structure.value not in (None, ANY)
-        names = [
-            m
-            for m in METRICS
-            if m in set(rows["metric"]) and (per_part_ok or not METRICS[m].per_part)
-        ]
-        options = {METRICS[m].label: m for m in names}
-        current = self.metric.value
+        present = set(rows["metric"])
+        names = [m for m in METRICS if m in present and (per_part_ok or not METRICS[m].per_part)]
+        # One entry per label: a fitted value under the chosen model, when that model has it
+        options = {}
+        for m in names:
+            label = METRICS[m].label
+            if label not in options or METRICS[m].model == self.hr_model.value:
+                options[label] = m
+        current = METRICS[self.metric.value].label if self.metric.value else None
         self.metric.options = options
         overview = {"distance_km", "duration_s", "avg_pace_s_per_km", "avg_hr", "max_hr", "ef"}
-        specific = [m for m in names if m not in overview]
-        self.metric.value = current if current in names else (specific or names or [None])[0]
-        self._render()
+        shown = list(options.values())
+        specific = [m for m in shown if m not in overview]
+        chosen = options.get(current) or (specific or shown or [None])[0]
+        if chosen == self.metric.value:
+            self._render()
+        else:
+            self.metric.value = chosen  # renders through the watcher
+
+    def _model_changed(self, *_):
+        if not self._syncing:
+            self._filters_changed()
+
+    def _sync_model(self, info: MetricInfo | None):
+        """Show the HR model choice for a fitted value, offering the models that have it."""
+        models = [i.model for i in METRICS.values() if info and i.model and i.label == info.label]
+        self._syncing = True
+        try:
+            if models:
+                self.hr_model.param.update(
+                    options={MODELS[m].label: m for m in models}, value=info.model
+                )
+            self.hr_model.visible = bool(models)
+        finally:
+            self._syncing = False
 
     # output
 
     def _render(self, *_):
         metric = self.metric.value
+        self._sync_model(METRICS[metric] if metric else None)
         rows = self._rows()
         rows = rows[rows["metric"] == metric] if metric else rows.iloc[0:0]
         if rows.empty:
@@ -221,7 +257,14 @@ class TrendsPage(pn.viewable.Viewer):
             )
         return pn.Column(
             pn.pane.Markdown("## Trends"),
-            pn.Row(self.category, self.structure, self.tag_filter, self.metric),
+            pn.FlexBox(
+                self.category,
+                self.structure,
+                self.tag_filter,
+                self.metric,
+                self.hr_model,
+                sizing_mode="stretch_width",
+            ),
             self.chart,
             html('<div class="hint">Click a run in the table to open it.</div>'),
             self.table,

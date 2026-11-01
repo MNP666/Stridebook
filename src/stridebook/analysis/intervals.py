@@ -6,6 +6,7 @@ import numpy as np
 import pandas as pd
 
 from stridebook.analysis.common import mean_over, smooth, value_at
+from stridebook.analysis.hr_fit import HrFits, fit_parts, part_metrics
 from stridebook.analysis.metrics import metric_frame
 from stridebook.analysis.segments import blocks
 from stridebook.config import Settings
@@ -23,6 +24,7 @@ class IntervalResult:
     #                           hr_drop_30s, hr_drop_60s, min_hr
     rep_traces: pd.DataFrame  # rep_no, t_s, heart_rate, pace_s_per_km
     rest_traces: pd.DataFrame  # rest_no, t_s, heart_rate
+    hr_fits: HrFits  # HR response models fitted to each rep; part_no is the rep_no
 
 
 def compute(records: pd.DataFrame, segments: pd.DataFrame, settings: Settings) -> IntervalResult:
@@ -80,6 +82,7 @@ def compute(records: pd.DataFrame, segments: pd.DataFrame, settings: Settings) -
         recoveries=recoveries,
         rep_traces=_traces(records, reps, "rep_no", with_pace=True),
         rest_traces=_traces(records, recoveries.assign(end=rests["end"].to_numpy()), "rest_no"),
+        hr_fits=fit_parts(records, reps, "rep_no"),
     )
 
 
@@ -123,5 +126,6 @@ def metrics(r: IntervalResult) -> pd.DataFrame:
             "rep_avg_hr": reps["avg_hr"].tolist(),
             "rep_end_hr": reps["end_hr"].tolist(),
             "rest_hr_drop_60s": rec["hr_drop_60s"].tolist(),
+            **part_metrics(r.hr_fits, "rep"),
         },
     )
