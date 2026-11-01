@@ -48,7 +48,7 @@ def view(p: ProcessedRun, r: EasyResult, settings: Settings):
         tooltips=[("Pace", "@pace /km"), ("HR", "@heart_rate{0} bpm")],
     )
     scatter = plots.style(
-        scatter.opts(xformatter=plots.MMSS, invert_xaxis=True),
+        scatter.opts(xformatter=plots.mmss(), invert_xaxis=True),
         240,
         title="HR against pace, 30 s averages",
         xlabel="Pace (min/km), faster to the right",

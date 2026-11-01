@@ -63,7 +63,7 @@ def view(p: ProcessedRun, r: IntervalResult, settings: Settings):
         title="HR in each rep",
         xlabel="Time into rep (min:sec)",
         ylabel="HR (bpm)",
-        xformatter=plots.MMSS,
+        xformatter=plots.mmss(),
     )
     rests = r.rest_traces.assign(time=r.rest_traces["t_s"].map(fmt.duration))
     hr_rests = plots.ordered_overlay(
@@ -77,7 +77,7 @@ def view(p: ProcessedRun, r: IntervalResult, settings: Settings):
         title="HR recovery in each rest",
         xlabel="Time into rest (min:sec)",
         ylabel="HR (bpm)",
-        xformatter=plots.MMSS,
+        xformatter=plots.mmss(),
     )
 
     table = pd.DataFrame(

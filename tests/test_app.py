@@ -2,6 +2,7 @@
 
 import panel as pn
 import pytest
+from bokeh.document import Document
 
 from stridebook.app import create_app
 from stridebook.sources.toy import ToySource
@@ -32,6 +33,20 @@ def test_run_page_builds(state, category):
     run_id = runs.loc[runs["category"] == category, "run_id"].iloc[0]
     for tab in RunPage(state, run_id).__panel__()[1]:
         pn.panel(tab).get_root()
+
+
+def test_pages_render_in_two_sessions(state):
+    """Each browser session has its own Bokeh document, and a model may belong to only one.
+    A model shared between sessions (a module-level tick formatter, say) fails in the second."""
+    runs = state.store.runs()
+    run_id = runs.loc[runs["category"] == "interval", "run_id"].iloc[0]
+    for _ in range(2):
+        doc = Document()
+        trends = TrendsPage(state)
+        trends.structure.value = "5x6:00 r1:30"
+        trends.metric.value = "rep_pace_s_per_km"
+        for view in [*RunPage(state, run_id).__panel__()[1], trends]:
+            doc.add_root(pn.panel(view).get_root(doc))
 
 
 def test_trends_per_part(state):

@@ -15,17 +15,22 @@ from stridebook.ui.theme import ordinal, palette
 
 hv.extension("bokeh", logo=False)
 
-MMSS = CustomJSTickFormatter(
-    code="const t = Math.round(tick); return Math.floor(t / 60) + ':' + "
-    "String(t % 60).padStart(2, '0');"
-)
+
+# Tick formatters are built per chart: a Bokeh model belongs to one document, and a shared one
+# breaks a second browser session (the theme toggle opens one by reloading the page).
+def mmss() -> CustomJSTickFormatter:
+    return CustomJSTickFormatter(
+        code="const t = Math.round(tick); return Math.floor(t / 60) + ':' + "
+        "String(t % 60).padStart(2, '0');"
+    )
 
 
-HMMSS = CustomJSTickFormatter(
-    code="const t = Math.round(tick); const h = Math.floor(t / 3600); "
-    "const m = Math.floor((t % 3600) / 60); const s = String(t % 60).padStart(2, '0'); "
-    "return h ? h + ':' + String(m).padStart(2, '0') + ':' + s : m + ':' + s;"
-)
+def hmmss() -> CustomJSTickFormatter:
+    return CustomJSTickFormatter(
+        code="const t = Math.round(tick); const h = Math.floor(t / 3600); "
+        "const m = Math.floor((t % 3600) / 60); const s = String(t % 60).padStart(2, '0'); "
+        "return h ? h + ':' + String(m).padStart(2, '0') + ':' + s : m + ':' + s;"
+    )
 
 
 def style(element, height: int = 200, **opts):
@@ -64,7 +69,7 @@ def dots(df, x, y, *, color, extra=(), tooltips=None, label=None, **opts):
 
 
 def pace_axis(element, xlabel: str = ""):
-    return element.opts(yformatter=MMSS, invert_yaxis=True, ylabel="Pace (min/km)", xlabel=xlabel)
+    return element.opts(yformatter=mmss(), invert_yaxis=True, ylabel="Pace (min/km)", xlabel=xlabel)
 
 
 def padded_ylim(values: pd.Series, min_pad: float = 8.0) -> tuple[float, float]:

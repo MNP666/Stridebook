@@ -175,9 +175,9 @@ class TrendsPage(pn.viewable.Viewer):
     def _axes(self, element, info):
         element = element.opts(title=info.label, xlabel="", ylabel=info.unit)
         if info.unit == "s/km":
-            return element.opts(yformatter=plots.MMSS, invert_yaxis=True, ylabel="min/km")
+            return element.opts(yformatter=plots.mmss(), invert_yaxis=True, ylabel="min/km")
         if info.unit == "s":
-            return element.opts(yformatter=plots.HMMSS, ylabel="")
+            return element.opts(yformatter=plots.hmmss(), ylabel="")
         return element
 
     def _fill_table(self, rows: pd.DataFrame, metric: str, info):
